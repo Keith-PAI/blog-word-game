@@ -1,0 +1,23 @@
+{
+    "meta": { "name": "Thanksgiving ✈️ Airlift", "version": "1.0", "updated": "2025-11-10" },
+    "settings": { "gridTimerSec": 120, "anagramTimerSec": 60, "seedSalt": "tgx-2025" },
+    "grid": {
+      "core_words": ["air","run","way","gate","bag","tag","fly","pilot","crew","seat","meal","line","queue","flare","final","hold","note","ice","deice","taxi","apron","fast","slow","thank","thanks","thankful","family","gravy","turkey","pie","pumpkin","yams","meal","stuffing","table","plate","fork","spoon","leftovers","home","visit","host","guest","harvest","corn","squash","apple","cider"],
+      "golden_words": ["turkey","gravy","stuffing","cranberry","pumpkin","pie","family","thanks","thankful","gratitude","harvest","leftovers","boarding","pushback","deice","atis","notam","ils","taxi","apron","gate","gatehold","layover","runway","tower","radar","ifr","vfr","pilot","captain","copilot"],
+      "iata": ["ATL","ORD","DFW","DEN","LAX","JFK","EWR","BOS","IAD","DCA","MCO","PHX","CLT","MSP","SFO","SEA","BWI","DTW","FLL","TPA","IAH","SLC","SAN","PDX","LAS","PHL","AUS"],
+      "letter_bag": ["E","E","E","E","E","A","A","A","I","I","I","O","O","N","R","T","L","S","D","G","U","H","C","M","B","P","F","Y","W","K","R","U","N","W","A","Y","T","H","A","N","K","S","T","U","R","K","E","Y","P","I","E"]
+    },
+    "anagrams": [
+      {"answer":"JFK","clue":"NYC Thanksgiving traffic (IATA)","letters":"KJF"},
+      {"answer":"TURKEY","clue":"Centerpiece of many tables","letters":"UETKRY"},
+      {"answer":"GATE","clue":"Where boarding begins","letters":"GT AE"},
+      {"answer":"GRAVY","clue":"Pours over potatoes","letters":"VGYRA"},
+      {"answer":"NOTAM","clue":"Pilots are thankful for timely…","letters":"MTOAN"},
+      {"answer":"LAYOVER","clue":"An unexpected holiday in a hub","letters":"RLYOAVE"},
+      {"answer":"PIE","clue":"Pumpkin or apple","letters":"EIP"},
+      {"answer":"DEICE","clue":"Cold-weather ground operation","letters":"ECEDI"},
+      {"answer":"ATL","clue":"Busiest US airport overall","letters":"TLA"},
+      {"answer":"FAMILY","clue":"Reason for the season","letters":"MALYIF"}
+    ]
+  }
+  
