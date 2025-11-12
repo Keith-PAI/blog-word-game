@@ -14,6 +14,7 @@
   --bg:#0b141d;--panel:#0f1a24
 }
 *{box-sizing:border-box}html,body{margin:0;height:100%;background:linear-gradient(180deg,var(--bg),#0a1330)}
+[hidden]{display:none !important;}
 body{color:var(--ink);font:16px/1.45 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;justify-content:center}
 .wrap{width:100%;max-width:980px;padding:16px}
 .app{background:var(--panel);border:1px solid #1f2937;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.35);overflow:hidden}
@@ -243,18 +244,36 @@ function startAnagram(){ANA_ROUNDS=buildAnagrams(PACK);anaIx=0;anaScore=0;anaStr
 function submitAnagram(skip=false){if(anaIx>=ANA_ROUNDS.length)return;const r=ANA_ROUNDS[anaIx];const guess=skip?'':$('#anaInput').value.trim().toUpperCase();const fb=$('#anaFeedback');if(skip){fb.innerHTML=`<span class="muted">Skipped. Answer: <b>${r.answer}</b></span>`;anaStreak=0;$('#anaStreak').textContent=anaStreak}else if(guess===r.answer){const base=Math.max(3,r.answer.length);anaStreak++;anaBest=Math.max(anaBest,anaStreak);const pts=base+Math.min(5,anaStreak);anaScore+=pts;$('#anaScore').textContent=anaScore;$('#anaStreak').textContent=anaStreak;$('#anaBestStreak').textContent=anaBest;fb.innerHTML=`<span class="success">+${pts} ✓</span>`}else{fb.innerHTML=`<span class="fail">✗ Try again</span>`;return}anaIx++;if(anaIx<ANA_ROUNDS.length){setTimeout(()=>setAnaRound(anaIx),450)}else{if(anaTimerId){clearInterval(anaTimerId);anaTimerId=null}fb.innerHTML+=` <span class="muted">— Finished! Final: <b>${anaScore}</b></span>`}}
 function wireAnagram(){ $('#anaStart').onclick=startAnagram; $('#anaSubmit').onclick=()=>submitAnagram(false); $('#anaSkip').onclick=()=>submitAnagram(true); $('#anaInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitAnagram(false)})}
 
-/* ---------- Tabs & header ---------- */
-$$('.tab').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    $$('.tab').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false')});
-    btn.classList.add('active');btn.setAttribute('aria-pressed','true');
-    const tab=btn.dataset.tab; const g=$('#grid'), a=$('#anagram');
-    if(tab==='grid'){g.hidden=false;g.setAttribute('aria-hidden','false');a.hidden=true;a.setAttribute('aria-hidden','true')}
-    else{a.hidden=false;a.setAttribute('aria-hidden','false');g.hidden=true;g.setAttribute('aria-hidden','true')}
+// --- Tab switching (robust) ---
+function setTab(tab){
+  const g = document.getElementById('grid');
+  const a = document.getElementById('anagram');
+
+  // Update buttons
+  document.querySelectorAll('.tab').forEach(b=>{
+    const active = b.dataset.tab === tab;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', active ? 'true' : 'false');
   });
+
+  // Toggle content (belt + suspenders)
+  if (tab === 'grid') {
+    g.hidden = false; g.style.display = '';
+    a.hidden = true;  a.style.display = 'none';
+  } else {
+    a.hidden = false; a.style.display = '';
+    g.hidden = true;  g.style.display = 'none';
+  }
+}
+
+// Wire buttons
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click', ()=> setTab(btn.dataset.tab));
 });
-$('#hard').addEventListener('change',()=>{gridSize=$('#hard').checked?5:4;initGrid()});
-$('#reshuffle').addEventListener('click',()=>{rng=seededFrom(ymd()+Math.random());initGrid()});
+
+// Default to grid on load
+setTab('grid');
+
 
 /* Help modal */
 const help=$('#help');$('#helpBtn').onclick=()=>help.classList.add('open');$('#helpClose').onclick=()=>help.classList.remove('open');help.addEventListener('click',e=>{if(e.target===help)help.classList.remove('open')});
