@@ -27,12 +27,11 @@
   .grid.size-4{grid-template-columns:repeat(4,1fr)}
   .grid.size-5{grid-template-columns:repeat(5,1fr)}
   .tile{aspect-ratio:1/1;background:#101a34;border:1px solid #243150;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;cursor:pointer;position:relative;transition:transform .05s}
-  .tile:active{transform:scale(.98)} .tile.sel{outline:2px solid var(--aviation);background:#0c213f}
+  .tile:active{transform:scale(.98)}
+  .tile.sel{outline:2px solid var(--aviation);background:#0c213f}
   .tile .sub{position:absolute;bottom:6px;right:8px;font-size:11px;color:#94a3b8}
-  .tile span {
-  color: #fff !important;   /* make the letter white */
-  text-shadow: 0 0 3px rgba(0,0,0,0.6); /* soft outline for contrast */
-}
+  /* High-contrast letters */
+  .tile span{color:#fff !important;text-shadow:0 0 3px rgba(0,0,0,.6)}
   .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   .btn{background:#0f1d3b;border:1px solid #23345a;color:var(--ink);padding:8px 12px;border-radius:10px;cursor:pointer}
   .btn.primary{background:linear-gradient(180deg,#19a1e6,#1284c1);border-color:#1e6fa1;color:#001018;font-weight:700}
@@ -67,6 +66,12 @@
         <button class="tab" data-tab="anagram" aria-pressed="false">Luggage Tag Shuffle</button>
       </nav>
     </header>
+
+    <!-- Friendly instructions -->
+    <div class="hint" style="text-align:center;margin:8px 16px 0;">
+      <b>How to play:</b> Click/tap adjacent letters to form words (≥ 3 letters). <b>Start</b> begins the timer —
+      or just click the board and it will auto-start. ✈️ Aviation & 🦃 Thanksgiving words score ×1.5.
+    </div>
 
     <section id="grid" class="content">
       <div class="card">
@@ -140,161 +145,76 @@
     </section>
 
     <div class="footer-note">
-      Tip: Host this file and swap packs via <code>?pack=thanksgiving</code> or <code>?pack=christmas</code>, or hardcode a pack URL. You can also embed via Squarespace Code Block using the fragment version below.
+      Tip: Host this file and swap packs via <code>?pack=thanksgiving</code> or <code>?pack=christmas</code>, or hardcode a pack URL.
     </div>
   </div>
 </div>
 
 <script>
-/* =============================== */
-/* Word Pack Loader + Overrides    */
-/* =============================== */
-
-// Defaults (can be overridden by pack)
+/* ========= Pack loader / overrides ========= */
 window.__GRID_TIMER_SEC = 120;
 window.__ANA_TIMER_SEC  = 60;
 window.__SEED_SALT = "";
 
-// Allow selecting pack via URL:
-//  - ?pack=christmas     -> loads ./packs/christmas.json
-//  - ?packUrl=https://...json  -> loads that URL directly
 const urlParams = new URL(location.href).searchParams;
-const packParam = urlParams.get('pack');     // e.g., "thanksgiving" or "christmas"
+const packParam = urlParams.get('pack');
 const packUrlParam = urlParams.get('packUrl');
-const PACK_BASE = 'packs/';                  // folder under your site root when hosting
-let WORDPACK_URL = '';                       // set below
-
-if (packUrlParam) {
-  WORDPACK_URL = packUrlParam;
-} else if (packParam) {
-  WORDPACK_URL = PACK_BASE + packParam + '.json';
-} else {
-  WORDPACK_URL = PACK_BASE + 'thanksgiving.json'; // default
-}
+const PACK_BASE = 'packs/';
+let WORDPACK_URL = packUrlParam ? packUrlParam : PACK_BASE + (packParam || 'thanksgiving') + '.json';
 
 let PACK = null;
-
-async function loadWordPack() {
-  if (!WORDPACK_URL) return null;
-  try {
-    const res = await fetch(WORDPACK_URL, { mode: 'cors', cache: 'no-cache' });
-    if (!res.ok) throw new Error(res.status + " " + res.statusText);
-    return await res.json();
-  } catch (e) {
-    console.warn("Word pack load failed; using built-ins:", e);
-    return null;
+async function loadWordPack(){
+  try{
+    const r = await fetch(WORDPACK_URL, {mode:'cors', cache:'no-cache'});
+    if(!r.ok) throw new Error(r.status);
+    return await r.json();
+  }catch(e){ console.warn('Pack load failed', e); return null; }
+}
+function applyWordPack(pack){
+  if(!pack) return;
+  if(pack.meta?.name) document.getElementById('packName').textContent = pack.meta.name;
+  if(pack.settings){
+    if(typeof pack.settings.gridTimerSec==='number') window.__GRID_TIMER_SEC = pack.settings.gridTimerSec;
+    if(typeof pack.settings.anagramTimerSec==='number') window.__ANA_TIMER_SEC = pack.settings.anagramTimerSec;
+    if(pack.settings.seedSalt) window.__SEED_SALT = String(pack.settings.seedSalt);
+  }
+  if(pack.grid){
+    if(Array.isArray(pack.grid.core_words)){ CORE_WORDS.clear(); pack.grid.core_words.forEach(w=>CORE_WORDS.add(String(w).toLowerCase())); }
+    if(Array.isArray(pack.grid.golden_words)){ GOLDEN_WORDS.clear(); pack.grid.golden_words.forEach(w=>GOLDEN_WORDS.add(String(w).toLowerCase())); }
+    if(Array.isArray(pack.grid.iata)){ IATA.splice(0,IATA.length,...pack.grid.iata.map(x=>String(x).toUpperCase())); IATA.forEach(c=>CORE_WORDS.add(c.toLowerCase())); }
+    if(Array.isArray(pack.grid.letter_bag)&&pack.grid.letter_bag.length){ LETTER_BAG.splice(0,LETTER_BAG.length,...pack.grid.letter_bag.map(ch=>String(ch).toUpperCase())); }
+  }
+  if(Array.isArray(pack.anagrams)&&pack.anagrams.length){
+    ANA_ROUNDS.splice(0,ANA_ROUNDS.length, ...pack.anagrams.map(r=>({answer:String(r.answer||'').toUpperCase(), clue:String(r.clue||''), letters:String(r.letters||'')})));
   }
 }
 
-function applyWordPack(pack) {
-  if (!pack) return;
-
-  // Title
-  if (pack.meta && pack.meta.name) {
-    document.getElementById('packName').textContent = pack.meta.name;
-  }
-
-  // Settings
-  if (pack.settings) {
-    if (typeof pack.settings.gridTimerSec === 'number') window.__GRID_TIMER_SEC = pack.settings.gridTimerSec;
-    if (typeof pack.settings.anagramTimerSec === 'number') window.__ANA_TIMER_SEC = pack.settings.anagramTimerSec;
-    if (pack.settings.seedSalt) window.__SEED_SALT = String(pack.settings.seedSalt);
-  }
-
-  // Grid words
-  if (pack.grid) {
-    if (Array.isArray(pack.grid.core_words)) {
-      CORE_WORDS.clear();
-      pack.grid.core_words.forEach(w => CORE_WORDS.add(String(w).toLowerCase()));
-    }
-    if (Array.isArray(pack.grid.golden_words)) {
-      GOLDEN_WORDS.clear();
-      pack.grid.golden_words.forEach(w => GOLDEN_WORDS.add(String(w).toLowerCase()));
-    }
-    if (Array.isArray(pack.grid.iata)) {
-      IATA.splice(0, IATA.length, ...pack.grid.iata.map(x => String(x).toUpperCase()));
-      IATA.forEach(c => CORE_WORDS.add(c.toLowerCase()));
-    }
-    if (Array.isArray(pack.grid.letter_bag) && pack.grid.letter_bag.length) {
-      LETTER_BAG.splice(0, LETTER_BAG.length, ...pack.grid.letter_bag.map(ch => String(ch).toUpperCase()));
-    }
-  }
-
-  // Anagrams
-  if (Array.isArray(pack.anagrams) && pack.anagrams.length) {
-    ANA_ROUNDS.splice(0, ANA_ROUNDS.length,
-      ...pack.anagrams.map(r => ({
-        answer: String(r.answer || "").toUpperCase(),
-        clue: String(r.clue || ""),
-        letters: String(r.letters || "")
-      }))
-    );
-  }
-}
-
-/* =============================== */
-/* Core helpers (unchanged)        */
-/* =============================== */
-const tzOffsetMinutes = new Date().getTimezoneOffset();
-function yyyymmddKey(d=new Date()){
-  const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  return dt.toISOString().slice(0,10);
-}
+/* ========= Helpers ========= */
+function yyyymmddKey(d=new Date()){const dt=new Date(d.getFullYear(),d.getMonth(),d.getDate());return dt.toISOString().slice(0,10)}
 function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296;}}
-function seededFromDate(extra=0){
-  const k = yyyymmddKey() + (window.__SEED_SALT || "");
-  let h=2166136261>>>0; for (let i=0;i<k.length;i++){h^=k.charCodeAt(i);h=Math.imul(h,16777619);} h=(h+extra)>>>0;
-  return mulberry32(h);
-}
-function randChoice(rng, arr){return arr[Math.floor(rng()*arr.length)]}
-const $ = sel => document.querySelector(sel);
-const $$ = sel => Array.from(document.querySelectorAll(sel));
+function seededFromDate(extra=0){const k=yyyymmddKey()+(window.__SEED_SALT||"");let h=2166136261>>>0;for(let i=0;i<k.length;i++){h^=k.charCodeAt(i);h=Math.imul(h,16777619)}h=(h+extra)>>>0;return mulberry32(h)}
+function randChoice(rng,arr){return arr[Math.floor(rng()*arr.length)]}
+const $=s=>document.querySelector(s); const $$=s=>Array.from(document.querySelectorAll(s));
 
-/* =============================== */
-/* Dictionaries (fallback defaults)*/
-/* =============================== */
-const GOLDEN_WORDS = new Set([
-  "turkey","gravy","stuffing","cranberry","pumpkin","pie","family","thanks","thankful","gratitude","harvest","leftovers",
-  "boarding","pushback","deice","de-ice","atis","notam","ils","queue","taxi","apron","gate","gatehold","slots","hub","layover","cabin","crew","runway","tower","radar","flare","final","rotate","vector","hold","ifr","vfr","squawk","pilot","captain","copilot","fa","rwy"
-]);
-const IATA = ["ATL","ORD","DFW","DEN","LAX","JFK","EWR","BOS","IAD","DCA","MCO","PHX","CLT","MSP","SFO","SEA","MIA","BWI","DTW","FLL","TPA","IAH","SLC","SAN","PDX","LAS","PHL","AUS"];
-const CORE_WORDS = new Set(["air","run","way","gate","bag","tag","fly","pilot","crew","seat","meal","line","queue","flare","final","hold","note","ice","deice","taxi","apron","fast","slow","thank","thanks","thankful","family","gravy","turkey","pie","pumpkin","yams","meal","stuff","stuffing","serve","table","plate","fork","spoon","leftovers","home","visit","host","guest","fall","autumn","harvest","corn","squash","apple","cider"]);
-IATA.forEach(c=>CORE_WORDS.add(c.toLowerCase()));
-const LETTER_BAG = [
-  ..."EEEEEEEEEEEE", ..."AAAAAAAAA", ..."IIIIIIIII", ..."OOOOOOOO",
-  ..."NNNNNN","RRRRRR","TTTTTT","LLLLL","SSSSS","DDDDD","GGGG","UUUU","HHHH","CCCC","MMM",
-  "B","P","F","Y","W","K","V","J","X","Z","Q",
-  ..."RUNWAYTHANKSAVIONTURKEYPIEBOARDGATEHOLD"
-];
-const ANA_ROUNDS = [
-  {answer:"JFK", clue:"NYC Thanksgiving traffic (IATA)", letters:"KJF"},
-  {answer:"TURKEY", clue:"Centerpiece of many tables", letters:"UETKRY"},
-  {answer:"GATE", clue:"Where boarding begins", letters:"GT AE"},
-  {answer:"GRAVY", clue:"Pours over potatoes", letters:"VGYRA"},
-  {answer:"NOTAM", clue:"Pilots are thankful for timely…", letters:"MTOAN"},
-  {answer:"LAYOVER", clue:"An unexpected holiday in a hub", letters:"RLYOAVE"},
-  {answer:"PIE", clue:"Pumpkin or apple", letters:"EIP"},
-  {answer:"DEICE", clue:"Cold-weather ground operation", letters:"ECEDI"},
-  {answer:"ATL", clue:"Busiest US airport overall", letters:"TLA"},
-  {answer:"FAMILY", clue:"Reason for the season", letters:"MALYIF"}
-];
+/* ========= Defaults / dictionaries ========= */
+const GOLDEN_WORDS=new Set(["turkey","gravy","stuffing","cranberry","pumpkin","pie","family","thanks","thankful","gratitude","harvest","leftovers","boarding","pushback","deice","atis","notam","ils","queue","taxi","apron","gate","gatehold","slots","hub","layover","cabin","crew","runway","tower","radar","flare","final","rotate","vector","hold","ifr","vfr","squawk","pilot","captain","copilot","fa","rwy"]);
+const IATA=["ATL","ORD","DFW","DEN","LAX","JFK","EWR","BOS","IAD","DCA","MCO","PHX","CLT","MSP","SFO","SEA","MIA","BWI","DTW","FLL","TPA","IAH","SLC","SAN","PDX","LAS","PHL","AUS"];
+const CORE_WORDS=new Set(["air","run","way","gate","bag","tag","fly","pilot","crew","seat","meal","line","queue","flare","final","hold","note","ice","deice","taxi","apron","fast","slow","thank","thanks","thankful","family","gravy","turkey","pie","pumpkin","yams","stuffing","table","plate","fork","spoon","leftovers","home","visit","host","guest","harvest","corn","squash","apple","cider"]); IATA.forEach(c=>CORE_WORDS.add(c.toLowerCase()));
+const LETTER_BAG=[..."EEEEEEEEEEEE",..."AAAAAAAAA",..."IIIIIIIII",..."OOOOOOOO","N","N","N","N","N","N","R","R","R","R","R","T","T","T","T","T","L","L","L","L","S","S","S","S","D","D","D","D","G","G","G","U","U","U","H","H","H","C","C","C","M","M","M","B","P","F","Y","W","K","V","J","X","Z","Q",..."RUNWAYTHANKSAVIONTURKEYPIEBOARDGATEHOLD"];
+const ANA_ROUNDS=[{answer:"JFK",clue:"NYC Thanksgiving traffic (IATA)",letters:"KJF"},{answer:"TURKEY",clue:"Centerpiece of many tables",letters:"UETKRY"},{answer:"GATE",clue:"Where boarding begins",letters:"GT AE"},{answer:"GRAVY",clue:"Pours over potatoes",letters:"VGYRA"},{answer:"NOTAM",clue:"Pilots are thankful for timely…",letters:"MTOAN"},{answer:"LAYOVER",clue:"An unexpected holiday in a hub",letters:"RLYOAVE"},{answer:"PIE",clue:"Pumpkin or apple",letters:"EIP"},{answer:"DEICE",clue:"Cold-weather ground operation",letters:"ECEDI"},{answer:"ATL",clue:"Busiest US airport overall",letters:"TLA"},{answer:"FAMILY",clue:"Reason for the season",letters:"MALYIF"}];
 
-/* =============================== */
-/* Tabs                            */
-/* =============================== */
+/* ========= Tabs ========= */
 $$('.tab').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     $$('.tab').forEach(b=>{b.classList.remove('active'); b.setAttribute('aria-pressed','false')});
     btn.classList.add('active'); btn.setAttribute('aria-pressed','true');
-    const tab = btn.dataset.tab;
+    const tab=btn.dataset.tab;
     if(tab==='grid'){ $('#grid').classList.remove('hidden'); $('#anagram').classList.add('hidden'); $('#anagram').setAttribute('aria-hidden','true'); }
     else { $('#anagram').classList.remove('hidden'); $('#grid').classList.add('hidden'); $('#anagram').setAttribute('aria-hidden','false'); }
   });
 });
 
-/* =============================== */
-/* Mode A: Word Grid               */
-/* =============================== */
+/* ========= Grid mode ========= */
 let gridSize=4,rng=seededFromDate(0),tiles=[],selection=[],found=new Set(),running=false,timeLeft=120,timerId=null,score=0;
 const LSKEY="tgx_airlift_scores";const todayKey=yyyymmddKey();
 function loadScores(){try{return JSON.parse(localStorage.getItem(LSKEY)||"{}")}catch(e){return {}}}
@@ -302,37 +222,69 @@ function saveScores(bt,ba){const o=loadScores();o.bestAll=Math.max(ba,o.bestAll|
 function updateScoreboard(){const o=loadScores();$('#bestToday').textContent=(o.bestByDay&&o.bestByDay[todayKey])||0;$('#bestAll').textContent=o.bestAll||0}
 function makeGrid(){const wrap=$('#gridWrap');wrap.innerHTML='';wrap.classList.toggle('size-5',gridSize===5);wrap.classList.toggle('size-4',gridSize===4);tiles=[];const count=gridSize*gridSize;for(let i=0;i<count;i++){const ch=randChoice(rng,LETTER_BAG);const tile=document.createElement('button');tile.className='tile';tile.setAttribute('aria-label',`Letter ${ch}`);tile.dataset.index=i;tile.dataset.letter=ch.toLowerCase();tile.innerHTML=`<span>${ch}</span><span class="sub">${i+1}</span>`;tile.addEventListener('click',()=>toggleSelect(i));tiles.push(tile);wrap.appendChild(tile)}selection=[];updateCurrentWord()}
 function indexNeighbors(i){const n=[];const r=Math.floor(i/gridSize);const c=i%gridSize;for(let dr=-1;dr<=1;dr++){for(let dc=-1;dc<=1;dc++){if(dr===0&&dc===0)continue;const rr=r+dr,cc=c+dc;if(rr>=0&&rr<gridSize&&cc>=0&&cc<gridSize)n.push(rr*gridSize+cc)}}return n}
-function toggleSelect(i){if(!running)return;if(selection.length===0){selection=[i];tiles[i].classList.add('sel');updateCurrentWord();return}const last=selection[selection.length-1];if(selection.includes(i)){if(i===last){selection.pop();tiles[i].classList.remove('sel');updateCurrentWord()}return}const neighbors=indexNeighbors(last);if(neighbors.includes(i)){selection.push(i);tiles[i].classList.add('sel');updateCurrentWord()}}
 function currentWordStr(){return selection.map(i=>tiles[i].dataset.letter).join('')}
 function clearSelection(){selection.forEach(i=>tiles[i].classList.remove('sel'));selection=[];updateCurrentWord()}
 function backspaceSelection(){const i=selection.pop();if(i!=null)tiles[i].classList.remove('sel');updateCurrentWord()}
 function wordScore(w){let pts=w.length;if(w.length>=5)pts+=2;let mult=1;if(GOLDEN_WORDS.has(w)||IATA.includes(w.toUpperCase()))mult=1.5;return Math.round(pts*mult)}
-function acceptWord(w){if(found.has(w))return{ok:false,msg:"Already found."};if(!isValidWord(w))return{ok:false,msg:"Not in word list."};found.add(w);const pts=wordScore(w);score+=pts;$('#score').textContent=score;renderFound();return{ok:true,pts}}
 function isValidWord(w){if(w.length<3)return false;if(CORE_WORDS.has(w))return true;if(IATA.includes(w.toUpperCase()))return true;if(GOLDEN_WORDS.has(w))return true;return false}
 function renderFound(){const box=$('#foundList');box.innerHTML='';const items=Array.from(found).sort((a,b)=>b.length-a.length||a.localeCompare(b));for(const w of items){const row=document.createElement('div');row.className='item';const isGold=GOLDEN_WORDS.has(w)||IATA.includes(w.toUpperCase());row.innerHTML=`<span>${w.toUpperCase()}</span><span class="tag ${isGold?'gold':''}">${wordScore(w)} pts</span>`;box.appendChild(row)}}
 function updateCurrentWord(){$('#currentWord').textContent=currentWordStr().toUpperCase()}
+
+/* Start/Timer (robust) */
 function startTimer(){running=true;timeLeft=window.__GRID_TIMER_SEC;$('#startBtn').disabled=true;tickGridTimer()}
 function tickGridTimer(){const m=Math.floor(timeLeft/60),s=timeLeft%60;$('#timer').textContent=`${m}:${s.toString().padStart(2,'0')}`;if(timeLeft<=0){running=false;$('#startBtn').disabled=false;const o=loadScores();const bt=Math.max(score,(o.bestByDay&&o.bestByDay[todayKey])||0);const ba=Math.max(score,o.bestAll||0);saveScores(bt,ba);updateScoreboard();return}timeLeft--;timerId=setTimeout(tickGridTimer,1000)}
 function reseed(){rng=seededFromDate(Math.floor(Math.random()*1e9)>>>0);makeGrid();resetRound()}
 function resetRound(){found.clear();renderFound();score=0;$('#score').textContent=score;clearSelection();if(timerId)clearTimeout(timerId);running=false;$('#startBtn').disabled=false;$('#timer').textContent=formatTime(window.__GRID_TIMER_SEC)}
 function formatTime(sec){const m=Math.floor(sec/60),s=sec%60;return `${m}:${s.toString().padStart(2,'0')}`}
-document.addEventListener('keydown',(e)=>{if($('#anagram')&&!$('#anagram').classList.contains('hidden'))return;if(!running)return;if(e.key==='Enter'){submitCurrent()}else if(e.key==='Backspace'){e.preventDefault();backspaceSelection()}else if(e.key==='Escape'){clearSelection()}})
-function shareText(){const id=$('#puzzleId').textContent;const items=Array.from(found);const tally=items.length;const stars="✈️".repeat(Math.min(5,Math.max(1,Math.floor(score/20))));const pname=$('#packName').textContent;return [`${pname} — Runway Rumble #${id}`,`Score: ${score}  Words: ${tally}  Grid: ${gridSize}×${gridSize}  ${stars}`,items.slice(0,10).map(w=>w.toUpperCase()).join(" · "), "Play on: "+location.hostname].filter(Boolean).join("\n")}
-function randomHint(){const list=[...GOLDEN_WORDS,...IATA.map(x=>x.toLowerCase())];return list[Math.floor(seededFromDate(42)()*list.length)].toUpperCase()}
-function initGridMode(){gridSize=$('#hard').checked?5:4;rng=seededFromDate(0);makeGrid();resetRound();$('#puzzleId').textContent=yyyymmddKey().replaceAll('-','')}
+
+/* Auto-start & pre-selection visual feedback */
+function safeStartIfNeeded(){ if(!running) startTimer(); }
+const _origToggleSelect = function(i){
+  if(selection.length===0){selection=[i];tiles[i].classList.add('sel');updateCurrentWord();return}
+  const last=selection[selection.length-1];if(selection.includes(i)){if(i===last){selection.pop();tiles[i].classList.remove('sel');updateCurrentWord()}return}
+  const neighbors=indexNeighbors(last);if(neighbors.includes(i)){selection.push(i);tiles[i].classList.add('sel');updateCurrentWord()}
+};
+function toggleSelect(i){
+  if(!running){ // allow visuals even before starting
+    _origToggleSelect(i); return;
+  }
+  _origToggleSelect(i);
+}
+
+/* Events */
 $('#hard').addEventListener('change',()=>{gridSize=$('#hard').checked?5:4;initGridMode()});
 $('#startBtn').addEventListener('click',()=>startTimer());
+$('#gridWrap').addEventListener('click',safeStartIfNeeded);
 $('#reshuffle').addEventListener('click',reseed);
 $('#submitWord').addEventListener('click',submitCurrent);
 $('#clearSel').addEventListener('click',clearSelection);
 $('#backspace').addEventListener('click',backspaceSelection);
-$('#hintBtn').addEventListener('click',()=>{const h=randomHint();$('#shareMsg').textContent=`Try to find: ${h}`;setTimeout(()=>$('#shareMsg').textContent='',3000)});
-$('#shareBtn').addEventListener('click',async()=>{const txt=shareText();try{await navigator.clipboard.writeText(txt);$('#shareMsg').textContent='Result copied!'}catch(e){$('#shareMsg').textContent='Copy failed — select & copy.'}setTimeout(()=>$('#shareMsg').textContent='',4000)});
-function submitCurrent(){if(!running)return;const w=currentWordStr();const res=acceptWord(w);$('#shareMsg').textContent=res.ok?`+${wordScore(w)} for ${w.toUpperCase()}`:res.msg;clearSelection();setTimeout(()=>$('#shareMsg').textContent='',1800)}
+document.addEventListener('keydown',(e)=>{if($('#anagram')&&!$('#anagram').classList.contains('hidden'))return;if(e.key==='Enter'){submitCurrent()}else if(e.key==='Backspace'){e.preventDefault();backspaceSelection()}else if(e.key==='Escape'){clearSelection()}});
 
-/* =============================== */
-/* Mode B: Anagrams                */
-/* =============================== */
+/* Smarter Hint: only suggest a word buildable from current letters (bag check) */
+$('#hintBtn').addEventListener('click',()=>{
+  const pool=[...GOLDEN_WORDS, ...IATA.map(x=>x.toLowerCase())];
+  const letters=tiles.map(t=>t.dataset.letter);
+  function canBuild(word){
+    const bag=letters.slice();
+    for(const ch of word.toLowerCase()){
+      const ix=bag.indexOf(ch); if(ix===-1) return false; bag.splice(ix,1);
+    }
+    return true;
+  }
+  const candidates=pool.filter(w=>w.length>=3 && canBuild(w));
+  const hint=candidates.length ? candidates[Math.floor(Math.random()*candidates.length)] : 'ANY AVIATION WORD';
+  $('#shareMsg').textContent=`Try to find: ${hint.toUpperCase()}`;
+  setTimeout(()=>$('#shareMsg').textContent='',3000);
+});
+
+function submitCurrent(){if(!selection.length)return;const w=currentWordStr();if(!running) safeStartIfNeeded(); if(found.has(w)){toast('Already found.'); clearSelection();return;} if(!isValidWord(w)){toast('Not in word list.'); clearSelection();return;} found.add(w);const pts=wordScore(w);score+=pts;$('#score').textContent=score;renderFound();toast(`+${pts} for ${w.toUpperCase()}`);clearSelection()}
+function toast(msg){$('#shareMsg').textContent=msg;setTimeout(()=>$('#shareMsg').textContent='',1800)}
+
+function randomHint(){const list=[...GOLDEN_WORDS,...IATA.map(x=>x.toLowerCase())];return list[Math.floor(seededFromDate(42)()*list.length)].toUpperCase()}
+function initGridMode(){gridSize=$('#hard').checked?5:4;rng=seededFromDate(0);makeGrid();resetRound();$('#puzzleId').textContent=yyyymmddKey().replaceAll('-','')}
+
+/* ========= Anagram mode (unchanged basics) ========= */
 let anaIx=0, anaScore=0, anaTimer=0, anaTimerId=null, anaStreak=0, anaBest=0;
 function setAnaRound(i){const r=ANA_ROUNDS[i];$('#anaRound').textContent=`${i+1} / ${ANA_ROUNDS.length}`;$('#scramble').textContent=r.letters.replace(/\s+/g,'').toUpperCase();$('#clue').textContent=r.clue;$('#anaInput').value='';$('#anaFeedback').textContent=''}
 function startAna(){anaIx=0;anaScore=0;anaStreak=0;$('#anaScore').textContent=anaScore;$('#anaStreak').textContent=anaStreak;setAnaRound(0);startAnaTimer()}
@@ -343,9 +295,7 @@ $('#anaSubmit').addEventListener('click',()=>anaSubmit(false));
 $('#anaSkip').addEventListener('click',()=>anaSubmit(true));
 $('#anaInput').addEventListener('keydown',(e)=>{if(e.key==='Enter')anaSubmit(false)});
 
-/* =============================== */
-/* Boot: load pack, then init      */
-/* =============================== */
+/* ========= Boot ========= */
 (async () => {
   PACK = await loadWordPack();
   applyWordPack(PACK);
